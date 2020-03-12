@@ -9,6 +9,7 @@ testCase.TestData.functionToTest = @EMC_maskIndex;
 testCase.TestData.evaluateOutput = @evaluateOutput;
 end
 
+
 function [result, message] = evaluateOutput(TYPE, SIZE, METHOD, OPTION, OUTPUTCELL, ~)
 % check the size, method and precision
 % if TYPE='fftshift', compare shift with fftshift
@@ -36,28 +37,38 @@ if ~strcmp(actualMethod, METHOD)
 end
 
 if help_isOptionDefined(OPTION, 'precision')
+    if help_isOptionDefined(OPTION, 'half') && help_getOptionParam(OPTION, 'half')
+        newSize = [floor(SIZE(1)/2)+1, SIZE(2:end)];
+    else
+        newSize = SIZE;
+    end
     expectPrecision = help_getOptionParam(OPTION, 'precision');
     if strcmpi(expectPrecision, 'uint')
-        if prod(SIZE) <= 2^16
+        if prod(newSize) <= intmax('uint16')
             expectPrecision = 'uint16';
-        elseif prod(SIZE) <= 2^32
+        elseif prod(newSize) <= intmax('uint32')
             expectPrecision = 'uint32';
         else
             expectPrecision = 'uint64';
         end
     elseif strcmpi(expectPrecision, 'int')
-        if prod(SIZE) <= 2^16
+        if prod(newSize) <= intmax('int16')
             expectPrecision = 'int16';
-        elseif prod(SIZE) <= 2^32
+        elseif prod(newSize) <= intmax('int32')
             expectPrecision = 'int32';
         else
             expectPrecision = 'int64';
         end
     end
 else
-    if prod(SIZE) <= 2^16
+  	if help_isOptionDefined(OPTION, 'half') && help_getOptionParam(OPTION, 'half')
+        newSize = [floor(SIZE(1)/2)+1, SIZE(2:end)];
+    else
+        newSize = SIZE;
+    end
+    if prod(newSize) <= intmax('uint16')
         expectPrecision = 'uint16';  % default
-    elseif prod(SIZE) <= 2^32
+    elseif prod(newSize) <= intmax('uint32')
         expectPrecision = 'uint32';  % default
     else
         expectPrecision = 'uint64';  % default
@@ -71,7 +82,10 @@ end
 % size
 if help_isOptionDefined(OPTION, 'half') && help_getOptionParam(OPTION, 'half')
     halfSize = [floor(SIZE(1)/2)+1, SIZE(2:end)];
-    if ~isequal(halfSize, size(INDEX))
+    if ~any(strcmpi(TYPE, {'fftshift', 'ifftshift'}))
+        message = sprintf("half can only be true if TYPE is 'fftshift' or 'ifftshift', got %s", TYPE);
+        return
+    elseif ~isequal(halfSize, size(INDEX))
         message = sprintf('expected half size=%d, got %d', mat2str(halfSize), mat2str(size(INDEX)));
         return
     end
@@ -115,6 +129,41 @@ elseif strcmpi(TYPE, 'ifftshift')
             return
         end
     end
+elseif strcmpi(TYPE, 'nc2nc')
+    if strcmpi(METHOD, 'gpu')
+        ps = abs(fftn(rand(SIZE, 'double', 'gpuArray')));
+        fullXform = zeros(SIZE,'double','gpuArray');
+    else
+        ps = abs(fftn(rand(SIZE, 'double')));
+        fullXform = zeros(SIZE,'double');
+    end
+    cX = floor(size(ps, 1)/2) + 1;
+    halfXform = ps(1:cX, :, :);
+    
+    fullXform(1:cX, :, :) = halfXform;  % place it at the top
+    fullXform = fullXform(INDEX);
+    if any(abs(fullXform - ps) > 1e-6, 'all')
+        message = sprintf("nc2nc doesn't work, size: %s", mat2str(SIZE));
+        return
+    end
+elseif strcmpi(TYPE, 'c2c')
+    if strcmpi(METHOD, 'gpu')
+        ps = abs(fftn(rand(SIZE, 'double', 'gpuArray')));
+        fullXform = zeros(SIZE,'double','gpuArray');
+    else
+        ps = abs(fftn(rand(SIZE, 'double')));
+        fullXform = zeros(SIZE,'double');
+    end
+    cX = floor(size(ps, 1)/2) + 1;
+    halfXform = ps(1:cX, :, :);
+    halfXform = halfXform(EMC_maskIndex('fftshift', SIZE, METHOD, {'half', true})); % center
+    
+    fullXform(1:cX, :, :) = halfXform;  % place it at the top
+    fullXform = fullXform(INDEX);
+    if any(abs(fullXform - fftshift(ps)) > 1e-6, 'all')
+        message = sprintf("c2c doesn't work, size: %s", mat2str(SIZE));
+        return
+    end
 end
 
 % nc2nc is tested in test_EMC_rfftn_and_irfftn
@@ -127,11 +176,23 @@ end
 
 
 function test_default(testCase)
-types = {'fftshift'; 'ifftshift'; 'nc2nc'; "fftshift"; "ifftshift"; "nc2nc"};
-sizes = [help_getRandomSizes(5, [500, 2000], '2d'); help_getRandomSizes(5, [50, 200], '3d')];
+types = {'fftshift'; 'ifftshift'};
+sizes = [help_getRandomSizes(10, [50, 200], '2d'); help_getRandomSizes(10, [50, 200], '3d'); [194,170]];
 methods = {'cpu'; 'gpu'};
 options = help_getBatchOption({'half', {true; false}; ...
                                'precision', {'int'; 'uint'; 'single'; 'double'}});
+testCase.TestData.toTest = help_getBatch(types, sizes, methods, options, {false}, {false});
+EMC_runTest(testCase);
+
+end
+
+
+function test_half2full(testCase)
+
+types = {'nc2nc'; 'c2c'};
+sizes = [help_getRandomSizes(10, [100, 200], '2d'); help_getRandomSizes(10, [50, 100], '3d')];
+methods = {'cpu'; 'gpu'};
+options = help_getBatchOption({'precision', {'int'; 'uint'; 'single'; 'double'}});
 testCase.TestData.toTest = help_getBatch(types, sizes, methods, options, {false}, {false});
 EMC_runTest(testCase);
 
