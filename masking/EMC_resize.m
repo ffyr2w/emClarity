@@ -20,7 +20,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %                                   NOTE: Unknown fields will raise an error.
 %
 %     -> 'origin' (int):            Origin convention - Center of rotation.
-%                                   -1, 1 or 2; see EMC_multi_gridVectors for more details.
+%                                   -1, 1 or 2; see EMC_coordVectors for more details.
 %                                   NOTE: 1|2 produce identical results because LIMITS is not relative
 %                                         to the origin but to the edges of the IMAGE. On the other hand,
 %                                         'origin'=-1 is different as it specifies a not-centered IMAGE
