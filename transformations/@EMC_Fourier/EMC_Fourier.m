@@ -1,25 +1,26 @@
 classdef EMC_Fourier < handle
 % Fourier transformer for EMC functions.
-% This class supports half (non-redundant) and
-% full (redundant) Discrete Fourier Transforms (DFT).
+% This class supports non-redundant and redundant Fast Fourier Transforms, as well as
+% centered and not-centered transforms.
 %
 
 % Created: 8Mar2020, R2019a
-% Version: v.1.0
+% Version: v.0.1.   Original draft
+%          v.0.2.   Second draft (2Apr2020, TF).     
 %
 
     % These attributes cannot be changed from outside the class methods.
     properties (SetAccess = private)
-        size_real 	% size of the real space image
-        size_freq  	% size of the frequency space spectrum.
-        method    	% 'gpu' or 'cpu'
-        precision 	% 'single' or 'double'
-        is3d
-        isEven
-        isOnGpu
-        centered  	% change frequency order of the spectrums, bandpass and indexes.
-        half      	% compute half transforms, bandpass and indexes.
-        half_wrap
+        size_real 	% (row):        size of the image
+        size_freq  	% (row):        size of the spectrum
+        method    	% (char|str):   method used; 'gpu' or 'cpu'
+        precision 	% (char|str):   precision used; 'single' or 'double'
+        is3d        % (bool):       3d or 2d
+        isEven      % (bool):       Is the dimension even or odd (for each dimension)
+        isOnGpu     % (bool):       Whether it is on gpu or cpu.
+        fftshift    % (bool):       Whether to compute the centered (true) or not-centered (false) transforms.
+        half      	% (bool):       compute half transforms, bandpass and indexes.
+        wrap        % (char|str):   type of wrapping to compute for the hermitian symmetry.
 
         % These are used by the getters to know if the indexes are already set.
         index_fftshift_isSet = false;
@@ -28,7 +29,7 @@ classdef EMC_Fourier < handle
     end
 
     % These attributes cannot be changed from outside the class methods.
-    % These attributes depends on the others attributes defined above.
+    % These attributes depends on the other attributes defined above.
     properties (Dependent = true, SetAccess = private)
         bandpass
         index_fftshift
@@ -44,31 +45,32 @@ classdef EMC_Fourier < handle
         % Constructor of EMC_Fourier.
         %
         % Input:
-        %   SIZE (vector):              Size (in pixel) of the 3d/2d grids to transform; [x, y, z] or [x, y].
+        %   SIZE (vector):              Size (in pixel) of the 3d/2d arrays to transform; [x, y, z] or [x, y].
         %                               NOTE: [1,1], [N,1] or [1,N] are not allowed.
-        %                               NOTE: This cannot be changed after initialization.
+        %                               NOTE: CANNOT be changed after initialization.
         %
         %	METHOD (str):               Method to use; 'gpu' or 'cpu'.
-        %                               NOTE: This can be changed after initialization using to().
+        %                               NOTE: CAN be changed after initialization using to().
         %
         %   OPTION (cell|struct):       Optional parameters.
-        %                               If cell: {field,value ; ...}, note the ';' between parameters.
+        %                               If cell: {field, value; ...}, note the ';' between parameters.
         %                               NOTE: Can be empty.
         %                               NOTE: Unknown fields will raise an error.
         %
-        %	  -> 'precision' (str):     Precision of the transforms; 'single' or 'double'.
-        %                               NOTE: This can be changed after initialization using to().
+        %	  -> 'precision' (str):     Precision to use; 'single' or 'double'.
+        %                               NOTE: CAN be changed after initialization using to().
+        %                               NOTE: fft() will raise an error if the precision does not match.
         %                               default = 'single'
         %
-        %     -> 'half' (bool):         Wheter or not the transformer should compute (and expect) the
+        %     -> 'half' (bool):         Whether or not the transformer should compute (and expect) the
         %                               non-redundant spectrum/bandpass. 
-        %                               NOTE: This cannot be changed after initialization.
+        %                               NOTE: CANNOT be changed after initialization.
         %                               default = true
         %
-        %     -> 'centered' (bool): 	Wheter or not the spectrums/bandpass should be centered (fftshift).
-        %                               This will automatically fftshift the transforms after fft and
-        %                               ifftshift the transforms before ifft.
-        %                               NOTE: This cannot be changed after initialization.
+        %     -> 'fftshift' (bool):     Whether or not the spectrum/bandpass should be centered (true).
+        %                               This will automatically fftshift the transforms after fft() and
+        %                               ifftshift the transforms before ifft().
+        %                               NOTE: CANNOT be changed after initialization.
         %                               default = false
         %
         %     -> 'plans' (str):         'estimate', 'measure', 'patient', 'exhaustive', 'hybrid' or 'none'
@@ -93,16 +95,16 @@ classdef EMC_Fourier < handle
             obj.method = 'cpu';
             obj.isOnGpu = false;
         else
-            error('EMC:Fourier', "METHOD should be 'gpu' or 'cpu'")
+            error('EMC:Fourier:METHOD', "METHOD should be 'gpu' or 'cpu'")
         end
 
-        OPTION = EMC_getOption(OPTION, {'precision', 'mode_half', 'mode_fftshift', 'plans'}, false);
+        OPTION = EMC_getOption(OPTION, {'precision', 'half', 'fftshift', 'plans'}, false);
 
         % precision
         if isfield(OPTION, 'precision')
             if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
                ~strcmpi(OPTION.precision, 'single') && ~strcmpi(OPTION.precision, 'double')
-                error('EMC:Fourier', "OPTION.precision should be 'single' or 'double'")
+                error('EMC:Fourier:fftshift', "OPTION.precision should be 'single' or 'double'")
             end
             obj.precision = OPTION.precision;
         else
@@ -110,31 +112,31 @@ classdef EMC_Fourier < handle
         end
 
         % centered
-        if isfield(OPTION, 'centered')
-            if ~isscalar(OPTION.centered) && ~islogical(OPTION.centered)
-                error('EMC:Fourier', 'OPTION.centered should be true or false')
+        if isfield(OPTION, 'fftshift')
+            if ~isscalar(OPTION.fftshift) && ~islogical(OPTION.fftshift)
+                error('EMC:Fourier:fftshift', 'OPTION.fftshift should be true or false')
             end
-            obj.centered = OPTION.centered;
+            obj.fftshift = OPTION.fftshift;
         else
-            obj.centered = true;  % default
+            obj.fftshift = false;  % default
         end
 
         % half
         if isfield(OPTION, 'half')
             if ~isscalar(OPTION.half) && ~islogical(OPTION.half)
-                error('EMC:Fourier', 'OPTION.half should be true or false')
+                error('EMC:Fourier:half', 'OPTION.half should be true or false')
             end
             obj.half = OPTION.half;
             if obj.half
                 obj.size_freq = [floor(SIZE(1) / 2) + 1, SIZE(2:end)];
-                if obj.centered; obj.half_wrap = 'c2nc'; else; obj.half_wrap = 'nc2nc'; end
+                if obj.centered; obj.wrap = 'c2nc'; else; obj.wrap = 'nc2nc'; end
             else
                 obj.size_freq = obj.size_real;
             end
         else
             obj.half = true;  % default
             obj.size_freq = [floor(SIZE(1) / 2) + 1, SIZE(2:end)];
-            obj.half_wrap = 'nc2nc';
+            obj.wrap = 'nc2nc';
         end
 
         % plans
@@ -149,15 +151,15 @@ classdef EMC_Fourier < handle
     end
 
     methods (Access = public)
-        DFT = fft(obj, IMAGE);
-        IMAGE = ifft(obj, DFT);
+        SPECTRUM = fft(obj, IMAGE);
+        IMAGE = ifft(obj, SPECTRUM);
         obj = setBandpass(obj, ARRAY, PIXEL, HIGHPASS, LOWPASS, OPTION);
         ARRAY = applyBandpass(obj, ARRAY, OPTION);
         obj = to(obj, STR);
     end
  	methods (Static)
         INDEX = getIndex(TYPE, SIZE, METHOD, OPTION);
-        FULL = half2full(WRAP, HALF, SIZE);
+        FULL = hermitian(WRAP, HALF, SIZE);
     end
 
     % Setters
@@ -181,7 +183,7 @@ classdef EMC_Fourier < handle
         function value = get.index_half2full(obj)
             if ~obj.index_half2full_isSet
                 obj.index_half2full_isSet = true;
-                obj.index_half2full = obj.getIndex(obj.half_wrap, obj.size_real, obj.method, ...
+                obj.index_half2full = obj.getIndex(obj.wrap, obj.size_real, obj.method, ...
                                                   {'half', obj.half});
             end
             value = obj.index_half2full;

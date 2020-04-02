@@ -60,7 +60,7 @@ function obj = setBandpass(obj, PIXEL, HIGHPASS, LOWPASS, OPTION)
 % Output:
 %   Bandpass (numeric):                 Bandpass filter.
 %                                       If obj.half, the bandpass is non-redundant.
-%                                       If obj.centered, the banpass is centered.
+%                                       If obj.fftshift, the banpass is centered.
 %
 % Note:
 %   - The default gaussian std (lowroll and highroll) of 0.02 and window (lowthresh and highthresh)
@@ -105,7 +105,7 @@ if ~flg.lowpass && ~flg.highpass
     return
 end
 
-if obj.centered; origin = -1; else; origin = 1; end
+if obj.fftshift; origin = 1; else; origin = -1; end
 [vX, vY, vZ] = EMC_coordVectors(obj.size_freq, obj.method, {'origin', origin; ...
                                                             'half', obj.half; ...
                                                             'normalize', true; ...

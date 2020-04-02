@@ -1,10 +1,10 @@
-function FULL = half2full(WRAP, HALF, SIZE, varargin)
+function FULL = hermitian(WRAP, HALF, SIZE, varargin)
 %
-% FULL = EMC_Fourier.half2full(WRAP, HALF, SIZE, varargin)
-% Applied the Hermitian symetry to the HALF spectrum to reconstruct the FULL spectrum.
+% FULL = EMC_Fourier.hermitian(WRAP, HALF, SIZE, varargin)
+% Apply the Hermitian symmetry to the non-redundant HALF spectrum to reconstruct the redundant FULL spectrum.
 %
 % Input:
-%   WRAP (str|char):        Type of wrapping (always half -> full).
+%   WRAP (str|char):        Type of wrapping (always from non-redundant to redundant).
 %                           'nc2nc': Calculate the linear indices to go from a half
 %                                    non-centered spectrum to a full non-centered spectrum.
 %                           'c2nc':  Calculate the linear indices to go from a half centered
@@ -13,19 +13,19 @@ function FULL = half2full(WRAP, HALF, SIZE, varargin)
 %                                    spectrum to a full centered spectrum.
 %
 %   HALF (numeric):         Half spectrum of size floor(SIZE/2)+1.
-%                           NOTE: if real (not complex), the Hermitian symetry becomes a central symetry.
+%                           NOTE: if real (not complex), the Hermitian symmetry becomes a central symetry.
 %
 %   SIZE (vector):          Size (in pixel) of the full spectrum; [x, y, z] or [x, y].
 %                           NOTE: [1,1], [N,1] or [1,N] are not allowed.
 %
 %   (optional)
 %   varargin{1} (numeric):  Use this wrapper to reconstruct the full grid.
-%                         	Its size and method should correspond to SIZE
-%                         	and method of HALF, respectively.
+%                         	Its size should correspond to SIZE
+%                         	and method should correspond to HALF's method.
 %
 % Output:
-%   FULL (numeric):     Full spectrum of size obj.size_real.
-%                       Method and precision are unchanged.
+%   FULL (numeric):         Full spectrum of size obj.size_real.
+%                           Method and precision are unchanged.
 %
 % Example:
 %   - Compute the full (redundant) spectrum using the half (non-redundant) spectrum:
@@ -57,7 +57,7 @@ FULL(1:oX+1, :, :) = HALF;
 if nargin == 4
     INDEX = varargin{1};
     if ~isequal(size(INDEX), SIZE) || ~EMC_shareMethod(INDEX, HALF)
-        error('EMC:Fourier', 'INDEX should have correspond to SIZE and have the same method as HALF')
+        error('EMC:Fourier:INDEX', 'INDEX should correspond to SIZE and have the same method as HALF')
     end
 else
     INDEX = EMC_Fourier.getIndex(WRAP, SIZE, method, {});
@@ -76,8 +76,8 @@ if ~isreal(HALF)
             FULL(1:oX(1), :, :) = conj(FULL(1:oX(1), :, :));
         end
     else
-        error('EMC:Fourier', "WRAP should be 'n2c', 'c2nc' or 'c2c'")
+        error('EMC:Fourier:WRAP', "WRAP should be 'n2c', 'c2nc' or 'c2c'")
     end
 end
 
-end  % half2full
+end  % hermitian

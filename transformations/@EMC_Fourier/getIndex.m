@@ -8,7 +8,7 @@ function INDEX = getIndex(TYPE, SIZE, METHOD, OPTION)
 %                           'fftshift':     Calculate the linear indices to go from a not-centered
 %                                           (zero first) to a centered spectrum.
 %
-%                           'ifftshift':	Calculate the linear indices to go from a centered
+%                           'ifftshift':    Calculate the linear indices to go from a centered
 %                                           to a not-centered (zero first) spectrum.
 %
 %                           'nc2nc':        Calculate the linear indices to go from a half not-centered
@@ -33,7 +33,7 @@ function INDEX = getIndex(TYPE, SIZE, METHOD, OPTION)
 %   METHOD (str):           Method used to compute the INDEX grid; 'cpu' or 'gpu'.
 %
 %   OPTION (cell|struct):   Optional parameters.
-%                           If cell: {field,value ; ...}, note the ';' between parameters.
+%                           If cell: {field, value; ...}, note the ';' between parameters.
 %                           NOTE: Can be empty.
 %                           NOTE: Unknown fields will raise an error.
 %
@@ -64,8 +64,8 @@ function INDEX = getIndex(TYPE, SIZE, METHOD, OPTION)
 %     >> wrap = EMC_Fourier.getIndex('fftshift', [128,128], 'cpu', {});
 %     >> dft_centered = dft(wrap);  % equivalent to fftshift(dft)
 %
-%   - Compute the full (redundant) spectrum using the half (non-redundant) spectrum:
-%     See EMC_Fourier.half2full.
+%   - Compute the redundant spectrum using the non-redundant spectrum:
+%     See EMC_Fourier.hermitian.
 %
 %
 % Other EMC-files required:
@@ -93,6 +93,9 @@ if isfield(OPTION, 'half')
     if ~islogical(OPTION.half) || ~isscalar(OPTION.half)
         error('EMC:half', 'OPTION.half should be a boolean, got %s', class(OPTION.half));
     elseif OPTION.half
+        if ~any(strcmpi(TYPE, {'fftshift', 'ifftshift'}))
+            error('EMC:half', "OPTION.half can only be true if TYPE is 'fftshift' or 'ifftshift'")
+        end
         SIZE(1) = floor(SIZE(1)/2) + 1;  % switch to corresponding half size
     end
 else
@@ -103,17 +106,17 @@ end
 if isfield(OPTION, 'precision')
     if (ischar(OPTION.precision) || isstring(OPTION.precision))
         if strcmpi(OPTION.precision, 'int')
-            if prod(SIZE) <= 2^16
+            if prod(SIZE) <= 2^15 - 1
                 OPTION.precision = 'int16';
-            elseif prod(SIZE) <= 2^32
+            elseif prod(SIZE) <= 2^31 - 1
                 OPTION.precision = 'int32';
             else
                 OPTION.precision = 'int64';
             end
         elseif strcmpi(OPTION.precision, 'uint')
-            if prod(SIZE) <= 2^16
+            if prod(SIZE) <= 2^16 - 1
                 OPTION.precision = 'uint16';
-            elseif prod(SIZE) <= 2^32
+            elseif prod(SIZE) <= 2^32 - 1
                 OPTION.precision = 'uint32';
             else
                 OPTION.precision = 'uint64';
@@ -124,9 +127,9 @@ if isfield(OPTION, 'precision')
     else
       	error('EMC:precision', "OPTION.precision should be a string|char vector, got %s", class(OPTION.precision))
     end
-elseif prod(SIZE) <= 2^16
+elseif prod(SIZE) <= 2^16 - 1
     OPTION.precision = 'uint16';  % default
-elseif prod(SIZE) <= 2^32
+elseif prod(SIZE) <= 2^32 - 1
     OPTION.precision = 'uint32';  % default
 else
     OPTION.precision = 'uint64';  % default
@@ -193,7 +196,7 @@ elseif strcmpi(TYPE, 'c2c')
         if e(2) == 2  % Y is even
             INDEX(e(1):c(1)-1, 1, e(3):end)   = INDEX(end:-1:c(1)+1, 1, end:-1:e(3));
         end
-        if e(3) == 3  % Z is even
+        if e(3) == 2  % Z is even
             INDEX(e(1):c(1)-1, e(2):end, 1)   = INDEX(end:-1:c(1)+1, end:-1:e(2), 1);
             if e(2) == 2  % Y and Z are both even
                 INDEX(e(1):c(1)-1, 1, 1)   = INDEX(end:-1:c(1)+1, 1, 1);

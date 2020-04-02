@@ -1,19 +1,19 @@
-function IMAGE = ifft(obj, DFT)
+function IMAGE = ifft(obj, SPECTRUM)
 %
-% IMAGE = obj.ifft(DFT)
-% N-D inverse Fast Fourier Transform wrapper, used for 2d/3d DFT of real images.
+% IMAGE = obj.ifft(SPECTRUM)
+% N-D inverse Fast Fourier Transform of a complex 2d/3d non-redundant/redundant SPECTRUM.
 %
 % Input:
-%   DFT (numeric):      2d or 3d Discrete Fourier Transform (complex).
+%   SPECTRUM (numeric): 2d or 3d, non-redundant or redundant, Fast Fourier Transform (complex).
 %
 % Output:
-%   IMAGE (numeric):    Inverse Discrete Fourier Transform of DFT (real).
+%   IMAGE (numeric):    Inverse Discrete Fourier Transform of SPECTRUM (real).
 %
 % Property used:
 %   obj.half
 %   obj.half_wrap
 %   obj.size_real
-%   obj.centered
+%   obj.fftshift
 %   obj.index_ifftshift
 %   obj.index_half2full
 %
@@ -21,8 +21,8 @@ function IMAGE = ifft(obj, DFT)
 %   EMC_Fourier.half2full
 %
 % Note:
-%   - Recomputing the full DFT has a non negligeable overload. This is only worth it
-%     if a lot of operation is done on the half grid whether than the full grid.
+%   - Recomputing the redundant SPECTRUM has a non negligeable overload.
+%     This is only worth it if a lot of operation are done on the non-redundant.
 %
 % Example:
 %   - >> ft = EMC_Fourier([128,128,128], 'gpu', {});
@@ -40,11 +40,11 @@ function IMAGE = ifft(obj, DFT)
 %
 
 if obj.half
-    IMAGE  = ifftn(EMC_Fourier.half2full(obj.half_wrap, DFT, obj.size_real, obj.index_half2full), 'symmetric');
+    IMAGE  = ifftn(EMC_Fourier.half2full(obj.wrap, SPECTRUM, obj.size_real, obj.index_half2full), 'symmetric');
 elseif obj.centered
-    IMAGE  = ifftn(DFT(obj.index_ifftshift), 'symmetric');
+    IMAGE  = ifftn(SPECTRUM(obj.index_ifftshift), 'symmetric');
 else
-    IMAGE  = ifftn(DFT, 'symmetric');
+    IMAGE  = ifftn(SPECTRUM, 'symmetric');
 end
 
 end  % ifft

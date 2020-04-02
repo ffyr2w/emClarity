@@ -7,11 +7,11 @@ function DFT = fft(obj, IMAGE)
 %   IMAGE (numeric):    2d or 3d numerical array (real).
 %
 % Output:
-%   DFT (numeric):      Half or full discrete Fourier transform of IMAGE (complex).
+%   DFT (numeric):      Non-redundant or redundant Fast Fourier Transform of IMAGE (complex).
 %
 % Property used:
 %   obj.half
-%   obj.centered
+%   obj.fftshift
 %   obj.size_freq
 %   obj.index_fftshift
 %
@@ -24,7 +24,7 @@ function DFT = fft(obj, IMAGE)
 % Created:  3Feb2020
 % Version:  v.1.0.  unittest (TF, 8Feb2020).
 %           v.1.1.  EMC_rfftn is integrated into EMC_Fourier.fft; can return
-%                   half/full not-centered/centered DFTs (TF, 8Mar2020).
+%                   half/full not-centered/centered FFTs (TF, 8Mar2020).
 %
 
 % This is a real pain that MATLAB doesn't support this by default.
@@ -36,7 +36,7 @@ if obj.half
 end
 
 % Shift the zero frequency to the center of the spectrum.
-if obj.centered
+if obj.fftshift
     DFT = DFT(obj.index_fftshift);
 end
 
