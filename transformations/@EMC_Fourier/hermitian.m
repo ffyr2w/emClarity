@@ -65,15 +65,26 @@ end
 
 FULL = FULL(INDEX);  % wrap
 
-% If complex, apply conjugate
-if ~isreal(HALF)
+if ~isreal(HALF)  % apply conjugate
     if strcmpi(WRAP, 'nc2nc') || strcmpi(WRAP, 'c2nc')
         FULL(oX(1)+1:end, :, :) = conj(FULL(oX(1)+1:end, :, :));
-    elseif strcmpi(WRAP, 'c2c')  % half centered -> full centered
+    elseif strcmpi(WRAP, 'c2c')
         if ~mod(SIZE(1),2)
             FULL(2:oX(1), :, :) = conj(FULL(2:oX(1), :, :));
         else
             FULL(1:oX(1), :, :) = conj(FULL(1:oX(1), :, :));
+        end
+    else
+        error('EMC:Fourier:WRAP', "WRAP should be 'n2c', 'c2nc' or 'c2c'")
+    end
+else
+    if strcmpi(WRAP, 'nc2nc') || strcmpi(WRAP, 'c2nc')
+        FULL(oX(1)+1:end, :, :) = FULL(oX(1)+1:end, :, :);
+    elseif strcmpi(WRAP, 'c2c')
+        if ~mod(SIZE(1),2)
+            FULL(2:oX(1), :, :) = FULL(2:oX(1), :, :);
+        else
+            FULL(1:oX(1), :, :) = FULL(1:oX(1), :, :);
         end
     else
         error('EMC:Fourier:WRAP', "WRAP should be 'n2c', 'c2nc' or 'c2c'")
