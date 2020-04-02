@@ -3,9 +3,6 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 % BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTION)
 % Create a 2D/3D filter; either a lowpass, highpass or bandpass filter.
 %
-% WARNING: EMC functions usually set the default origin to 1. This function has the default set to -1
-%          as bandpass filters are usually directly applied to fft outputs (not centered).
-%
 % Input:
 %   SIZE (vector):                      Size (in pixel) of the filter to compute; [x, y, z] or [x, y].
 %                                       NOTE: [1, N] or [N, 1] is not allowed.
@@ -32,10 +29,11 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 %                                       NOTE: Can be empty.
 %                                       NOTE: Unknown fields will raise an error.
 %
-%     -> 'origin' (int):                Origin convention. See EMC_coordVectors for more details.
-%                                       default = -1
+%     -> 'fftshift' (int):              Whether or not the filter should be centered (origin=1),
+%                                       or not-centered (origin=-1).
+%                                       default = false
 %
-%     -> 'half' (bool):                 Compute only the half mask. See EMC_coordVectors for more details.
+%     -> 'half' (bool):                 Whether or not to compute the half filter.
 %                                       default = false
 %
 %     -> 'highpassRoll' (float|str):	Standard deviation of the HIGHPASS gaussian roll.
@@ -90,7 +88,7 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 %
 % Example:
 %   - BANDPASS = EMC_bandpass([3740,3838], 3, nan, 8, 'cpu', {});  % lowpass filter with cutoff at 8A
-%   - BANDPASS = EMC_bandpass([3740,3838], 3, 10, 8, 'cpu', {'origin', 1});
+%   - BANDPASS = EMC_bandpass([3740,3838], 3, 10, 8, 'cpu', {'half', true});
 %
 % Other EMC-files required:
 %   EMC_getOption, EMC_coordVectors
@@ -102,6 +100,9 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 % Version:  v.1.0.  unittest (TF, 2Feb2020).
 %           v.1.0.1 LOWPASS can be 0, which is now equivalent to NaN (no lowpass filter).
 %                   If no highpass and no lowpass, compute a full pass (TF, 17Feb2020).
+%           v.1.0.2 Change the origin parameter to fftshift. Origin doesn't make sense here,
+%                   as these filters are meant to be applied in Fourier space, where the origin
+%                   is 1 (centered) or -1 (not-centered).
 %
 
 %% checkIN
@@ -118,7 +119,7 @@ if ~flg.lowpass && ~flg.highpass
     return
 end
 
-[vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.origin; ...
+[vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.fftshift; ...
                                                'half', OPTION.half; ...
                                                'normalize', true; ...
                                                'precision', OPTION.precision});
@@ -202,13 +203,21 @@ if ~isscalar(PIXEL) || ~isnumeric(PIXEL) || isinf(PIXEL) || ~(PIXEL > 0)
     error('EMC:PIXEL', 'PIXEL should be a positive float|int')
 end
 
-OPTION = EMC_getOption(OPTION, {'origin', 'half', 'highpassRoll', 'highpassThresh', ...
+OPTION = EMC_getOption(OPTION, {'fftshift', 'half', 'highpassRoll', 'highpassThresh', ...
                                 'lowpassRoll', 'lowpassThresh', 'precision'}, false);
 
-% let EMC_coordVectors do the checkIN, just set the default.
-if ~isfield(OPTION, 'origin')
-    OPTION.origin = -1;  % default
+
+if isfield(OPTION, 'fftshift')
+    if isscalar(OPTION.fftshift) && islogical(OPTION.fftshift)
+        if OPTION.fftshift; OPTION.fftshift = 1; else; OPTION.fftshift = -1; end
+    else
+        error('EMC:fftshift', 'OPTION.fftshift should be true or false')
+    end
+else
+    OPTION.fftshift = -1;  % default (origin=-1)
 end
+
+% let EMC_coordVectors do the checkIN, just set the default.
 if ~isfield(OPTION, 'half')
     OPTION.half = false;
 end

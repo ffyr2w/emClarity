@@ -136,7 +136,7 @@ else
 end
 
 %% Compute the indexes
-if strcmpi(TYPE, 'nc2nc') || strcmpi(TYPE, 'c2nc')
+if strcmpi(TYPE, 'nc2nc')
     cR = floor(SIZE/2) + 1;  % center receiver
     cD = ceil(SIZE/2);       % center donor
 
